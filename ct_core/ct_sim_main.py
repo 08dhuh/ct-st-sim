@@ -30,7 +30,7 @@ def run_back_propagation_vectorised(params_tuple,
                       y_range: tuple = (-5, 5),
                       theta_tuple: tuple[int, float, float] = (100, 2 * np.pi, 0),
                       phi_tuple: tuple[int, float, float] = (50, np.deg2rad(18), np.deg2rad(-18)),
-                      distance: float = 17.0,
+                      radius: float = 17.0,
                       mode: str = 'static',
                       geo: str = 'a',
                       width_val: float = 0.1,
@@ -44,13 +44,13 @@ def run_back_propagation_vectorised(params_tuple,
 
     is_angular = geo == 'a'
     width = phi_width(mode, is_angular, width_val, 0, 0,
-                      phi_tuple[0], theta_tuple[0], phi_range, theta_range, distance)
+                      phi_tuple[0], theta_tuple[0], phi_range, theta_range, radius)
     
     
-    ray_array = ray_id_vectorised(theta_space, phi_space, distance, grid_count,
+    ray_array = ray_id_vectorised(theta_space, phi_space, radius, grid_count,
                               is_beam_angular=is_angular, xy_mesh=xy_mesh, width=width)
     
-    mask = compute_signal_mask(params_tuple, theta_space, phi_space, distance)[:, :, None, None]
+    mask = compute_signal_mask(params_tuple, theta_space, phi_space, radius)[:, :, None, None]
     ray_array_masked = ray_array * mask
     recon_array = back_propagation_from_rays(ray_array_masked, strength=1.0, theta_count=theta_tuple[0])
     if array_flattening:

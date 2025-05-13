@@ -144,7 +144,7 @@ def _calculate_beam_strength_scaling(width_mode: str, common_width_kwargs: dict)
         manual_width = phi_width(width_mode='manual',
                                  phi=0,
                                  theta=0,
-                                 **common_width_kwargs)
+                                 **common_width_kwargs)[0]
         return auto_width/manual_width
     else:
         return 1

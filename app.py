@@ -3,19 +3,21 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 from ct_core import ct_sim_main as ct
-from ct_core.config import param_default, WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING,RECON_METHOD_MAPPING
+from config import DEFAULT_PARAM_VALUES, WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING, RECON_METHOD_MAPPING
+from session_helpers import CTInputParams, initialise_session_states, update_derived_params
 
-#TODO: add errors
-#TODO: add hash sum checks
+# TODO: add errors
+# TODO: add hash sum checks
 
 # session state initialisation
-for key, value in param_default.items():
-    st.session_state.setdefault(key, value)
+initialise_session_states()
+# for key, value in DEFAULT_PARAM_VALUES.items():
+#     st.session_state.setdefault(key, value)
 
-st.session_state.setdefault(
-    "x_range", (st.session_state.x_min, st.session_state.x_max))
-st.session_state.setdefault(
-    "y_range", (st.session_state.y_min, st.session_state.y_max))
+# st.session_state.setdefault(
+#     "x_range", (st.session_state.x_min, st.session_state.x_max))
+# st.session_state.setdefault(
+#     "y_range", (st.session_state.y_min, st.session_state.y_max))
 
 
 st.title('CT Scanner Simulator')
@@ -56,6 +58,7 @@ with st.sidebar:
                                               y_range=st.session_state.y_range,
                                               white_bg=st.session_state.white_bg
                                               )
+        st.session_state.white_bg = st.checkbox('White Background')        
         st.markdown('##### Preview')
         fig, ax = plt.subplots(figsize=(2, 2))
         ax.imshow(obj_masks, cmap='gray', origin='lower')
@@ -68,29 +71,34 @@ with st.sidebar:
     with st.expander("Image Grid Parameters", expanded=True):
         st.markdown("### X Range")
         col_x1, col_x2 = st.columns(2)
-        col_y1, col_y2 = st.columns(2)
+
 
         with col_x1:
             st.session_state.x_min = st.number_input("X min",
                                                      value=st.session_state.x_min,
                                                      max_value=st.session_state.x_max - 1,
-                                                     key='x_min_input')
+                                                     key='x_min_input',
+                                                     disabled=True)
         with col_x2:
             st.session_state.x_max = st.number_input("X max",
                                                      value=st.session_state.x_max,
                                                      min_value=st.session_state.x_min + 1,
-                                                     key='x_max_input')
+                                                     key='x_max_input',
+                                                     disabled=True)
         st.markdown("### Y Range")
+        col_y1, col_y2 = st.columns(2)
         with col_y1:
             st.session_state.y_min = st.number_input("Y min",
                                                      value=st.session_state.y_min,
                                                      max_value=st.session_state.y_max - 1,
-                                                     key='y_min_input')
+                                                     key='y_min_input',
+                                                     disabled=True)
         with col_y2:
             st.session_state.y_max = st.number_input("Y max",
                                                      value=st.session_state.y_max,
                                                      min_value=st.session_state.y_min + 1,
-                                                     key='y_max_input')
+                                                     key='y_max_input',
+                                                     disabled=True)
         st.session_state.grid_count = st.number_input(
             label="grid count",
             min_value=100,
@@ -98,32 +106,96 @@ with st.sidebar:
             value=int(st.session_state.grid_count),
             step=50)
 
-    selected_recon_method= st.selectbox('Reconstruction Method',
-                                list(RECON_METHOD_MAPPING.keys()))
-    st.session_state.recon_method = RECON_METHOD_MAPPING[selected_recon_method]
-    st.session_state.white_bg = st.checkbox('White Background')
-    beam_geometry = st.selectbox('Beam Geometry', ['Angular', 'Columnated'])
-    st.session_state.is_beam_angular = beam_geometry == 'Angular'
+    with st.expander("Reconstruction Parameters", expanded=True):
+        st.markdown("### θ")
+        col_t1, col_t2, col_t3 = st.columns(3)
+        with col_t1:
+            st.session_state.theta_count = st.number_input(
+                "θ count", value=st.session_state.theta_count, min_value=1)
 
-    selected_width = st.selectbox("Width Mode",
-                              list(WIDTH_MODE_MAPPING.keys())
-                              )
-    st.session_state.width_mode = WIDTH_MODE_MAPPING[selected_width]
-    selected_filter= st.selectbox("Filter Mode",
-                               list(FILTER_MODE_MAPPING.keys()))
-    st.session_state.filter_mode = FILTER_MODE_MAPPING[selected_filter]
+        with col_t2:
+            st.session_state.theta_min = st.number_input(
+                "θ min",
+                value=st.session_state.theta_min,
+                min_value=0.,
+                max_value=st.session_state.theta_max,
+                key="theta_min_input"
+            )
+
+        with col_t3:
+            st.session_state.theta_max = st.number_input(
+                "θ max",
+                value=st.session_state.theta_max,
+                min_value=st.session_state.theta_min,
+                max_value=360.,
+                key="theta_max_input"
+            )
+
+        st.markdown("### φ")
+        col_p1, col_p2, col_p3 = st.columns(3)
+        with col_p1:
+            st.session_state.phi_count = st.number_input(
+                "φ count", value=st.session_state.phi_count, min_value=1)
+        with col_p2:
+            st.session_state.phi_min = st.number_input(
+                "φ min",
+                value=st.session_state.phi_min,
+                max_value=st.session_state.phi_max,
+                key="phi_min_input"
+            )
+
+        with col_p3:
+            st.session_state.phi_max = st.number_input(
+                "φ max",
+                value=st.session_state.phi_max,
+                min_value=st.session_state.phi_min,
+                key="phi_max_input"
+            )
+
+        selected_recon_method = st.selectbox('Reconstruction Method',
+                                         list(RECON_METHOD_MAPPING.keys()))
+        st.session_state.recon_method = RECON_METHOD_MAPPING[selected_recon_method]
+        beam_geometry = st.selectbox('Beam Geometry', ['Angular', 'Columnated'])
+        st.session_state.is_beam_angular = beam_geometry == 'Angular'
+        st.session_state.beam_width = st.number_input("Manual Width(deg/cm)",
+                                             value=1.,
+                                             min_value=0.)
+        st.session_state.radius = st.number_input("Arm distance",
+                                              value=17.,
+                                              min_value=0.,
+                                              disabled=True)
+        selected_width = st.selectbox("Width Mode",
+                                  list(WIDTH_MODE_MAPPING.keys())
+                                  )
+        st.session_state.width_mode = WIDTH_MODE_MAPPING[selected_width]
+        selected_filter = st.selectbox("Filter Mode",
+                                    list(FILTER_MODE_MAPPING.keys()))
+        st.session_state.filter_mode = FILTER_MODE_MAPPING[selected_filter]
+    
+    
+
+    
+
+    
+    
+
+    # hash check for update
+    input_params = CTInputParams.from_session_state(st)
+    if input_params.detect_hash_change(st):
+        update_derived_params()
+
 
 # viewports
-fig, ax = plt.subplots(figsize=(10,10))
-#ax.imshow()
+fig, ax = plt.subplots(figsize=(10, 10))
+# ax.imshow()
 
-#debug
-st.write([(key,value) for key, value in st.session_state.items()])
-
-
-def main():
-    print("Hello from ct-st-sim!")
+# debug
+st.write(dict(st.session_state))
 
 
-if __name__ == "__main__":
-    main()
+# def main():
+#     print("Hello from ct-st-sim!")
+
+
+# if __name__ == "__main__":
+#     main()

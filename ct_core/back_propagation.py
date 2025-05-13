@@ -178,15 +178,15 @@ def ray_id_scalar(theta: float,
 def compute_signal_mask(params_tuple,
                         theta_space: np.ndarray,
                         phi_space: np.ndarray,
-                        distance: float) -> np.ndarray:
+                        radius: float) -> np.ndarray:
     #binary mask indicating which rays intersect any object
 
     x1, y1, r1, x2, y2, r2, x3, y3, r3 = params_tuple
     theta = theta_space[:, None]
     phi = phi_space[None, :]
 
-    dx = lambda x: x - np.cos(theta) * distance
-    dy = lambda y: y - np.sin(theta) * distance
+    dx = lambda x: x - np.cos(theta) * radius
+    dy = lambda y: y - np.sin(theta) * radius
 
     def in_object(x, y, r):
         nu = np.sin(phi - theta) * dx(x) + np.cos(phi - theta) * dy(y)
