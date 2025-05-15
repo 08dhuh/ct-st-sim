@@ -4,7 +4,16 @@ import numpy as np
 def generate_mesh_grid(x_range: tuple[float, float],
                        y_range: tuple[float, float],
                        num_grid: int):
-    # TODO: fix
+    """_summary_
+
+    Args:
+        x_range (tuple[float, float]): _description_
+        y_range (tuple[float, float]): _description_
+        num_grid (int): _description_
+
+    Returns:
+        _type_: _description_
+    """
     return np.meshgrid(np.linspace(x_range[0], x_range[1], num_grid),
                        np.linspace(y_range[0], y_range[1], num_grid))
 
@@ -14,23 +23,26 @@ def sim_params_to_grid(params_tuple: tuple[tuple[float]],  # ((x1, y1, r1),(x2, 
                        x_range=(-5, 5),
                        y_range=(-5, 5),
                        # plot=False,
-                       white_bg=True) -> np.ndarray:
-    # take the (x,y,r) parameters from the simulator and return a numpy array to visualise
+                       white_bg=True
+                       ) -> np.ndarray:
+    """take the (x,y,r) parameters from the simulator and return a numpy array to visualise
     # set up x,y meshgrids based on a grid number and x and y ranges and then check if they are within the regions
     # defined by each circle
-    # x1, y1, r1, x2, y2, r2, x3, y3, r3 = params_tuple
+
+    Args:
+        params_tuple (tuple[tuple[float]]): _description_
+        x_range (tuple, optional): _description_. Defaults to (-5, 5).
+        y_range (tuple, optional): _description_. Defaults to (-5, 5).
+        white_bg (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        np.ndarray: _description_
+    """
     x_mesh, y_mesh = generate_mesh_grid(
         x_range=x_range, y_range=y_range, num_grid=gridnum)
     output = np.zeros_like(x_mesh, dtype=int)
     for x, y, r in params_tuple:
         output |= (x_mesh - x) ** 2 + (y_mesh - y) ** 2 < r ** 2
-
-    # output = (((x_mesh - x1) ** 2 + (y_mesh - y1) ** 2 < r1 ** 2)
-    #           | ((x_mesh - x2) ** 2 + (y_mesh - y2) ** 2 < r2 ** 2)
-    #           | ((x_mesh - x3) ** 2 + (y_mesh - y3) ** 2 < r3 ** 2)).astype(int)
-
-    if not white_bg:
-        output = 1 - output
 
     return output
 
@@ -39,25 +51,28 @@ def signal_readout_iter(obj_params: np.ndarray,
                         theta: float,
                         phi: float,
                         radius: float,
-                        # width=False
+
                         ) -> bool:
-    # take a single theta and phi value and check if it overlaps with the simulated objects. Returns either 0 or 1
-    # x1, y1, r1, x2, y2, r2, x3, y3, r3 = obj_params
+    """    # take a single theta and phi value and check if it overlaps with the simulated objects. Returns either 0 or 1
+
+    Args:
+        obj_params (np.ndarray): _description_
+        theta (float): _description_
+        phi (float): _description_
+        radius (float): _description_
+
+    Returns:
+        bool: _description_
+    """
+
     def cond(x, y, r): return np.abs(np.sin(phi - theta) * (x - np.cos(theta)
                                                             * radius) + np.cos(phi - theta) * (y - np.sin(theta) * radius)) <= r
 
     return int(any([cond(x, y, r) for x, y, r in obj_params]))
-#     nu_1 = np.sin(phi - theta) * (x1 - np.cos(theta) * radius) + np.cos(phi - theta) * (y1 - np.sin(theta) * radius)
-#     nu_2 = np.sin(phi - theta) * (x2 - np.cos(theta) * radius) + np.cos(phi - theta) * (y2 - np.sin(theta) * radius)
-#     nu_3 = np.sin(phi - theta) * (x3 - np.cos(theta) * radius) + np.cos(phi - theta) * (y3 - np.sin(theta) * radius)
-#     if np.abs(nu_1) <= r1 or np.abs(nu_2) <= r2 or np.abs(nu_3) <= r3:
-#         return 1
-#     else:
-#         return 0
 
 
-def phi_width(phi: float,            
-              
+def phi_width(phi: float,
+
 
               # theta: float,
               phi_count: int,
@@ -70,7 +85,6 @@ def phi_width(phi: float,
               is_beam_angular: bool,
               ) -> tuple[float, float]:
     """
-    three cases of width modes ['manual', 'static' , 'variable']
     """
     match width_mode.lower():
         case 'manual':
@@ -104,12 +118,11 @@ def process_params(theta_tuple,
                    radius: float,
                    beam_width: float,
                    width_mode: str,
-                   # filter_mode: str,
-                   #    grid_min=100,
-                   #    grid_max=700
+
+
                    ):
     """
-    args
+    helper method
 
     theta_tuple,
                    phi_tuple,
@@ -142,14 +155,12 @@ def process_params(theta_tuple,
     theta_range = theta_max - theta_min
     phi_range = phi_max - phi_min
 
-    print(theta_range)
 
     if theta_range < 0:
         theta_range += 2 * np.pi
     if phi_range < 0:
         phi_range += 2 * np.pi
 
-    # grid_count = np.clip(grid_count, grid_min, grid_max)
     grid_count = grid_count
 
     common_width_kwargs = extract_common_width_kwargs(
@@ -163,7 +174,7 @@ def process_params(theta_tuple,
     )
     # strength = _calculate_beam_strength_scaling(width_mode=width_mode,
     #                                             common_width_kwargs=common_width_kwargs)
-    strength = 1
+    strength = 1 #TODO:debug
     recon_array = np.zeros((grid_count, grid_count))
     return theta_space, phi_space, xy_mesh, common_width_kwargs, strength, recon_array
 
@@ -173,15 +184,15 @@ def _calculate_beam_strength_scaling(width_mode: str, common_width_kwargs: dict)
     """
     if width_mode == 'manual':
         auto_width = phi_width(
-                               phi=0,
-                               width_mode='static',
-                               #theta=0,
-                               **common_width_kwargs)[0]
+            phi=0,
+            width_mode='static',
+
+            **common_width_kwargs)[0]
         manual_width = phi_width(
-                                 phi=0,
-                                 width_mode='manual',
-                                 #heta=0,
-                                 **common_width_kwargs)[0]
+            phi=0,
+            width_mode='manual',
+
+            **common_width_kwargs)[0]
         return auto_width/manual_width
     else:
         return 1
@@ -193,7 +204,21 @@ def extract_common_width_kwargs(is_beam_angular: bool,
                                 theta_count: int,
                                 phi_range: int,
                                 theta_range: int,
-                                radius: float):
+                                radius: float) -> dict:
+    """helper method. extracts common keyword arguments used for beam width calculations.
+
+    Args:
+        is_beam_angular (bool): _description_
+        beam_width (float): _description_
+        phi_count (int): _description_
+        theta_count (int): _description_
+        phi_range (int): _description_
+        theta_range (int): _description_
+        radius (float): _description_
+
+    Returns:
+        _type_: _description_
+    """
     return {
         "is_beam_angular": is_beam_angular,
         "beam_width": beam_width,

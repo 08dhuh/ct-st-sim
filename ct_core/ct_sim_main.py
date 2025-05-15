@@ -12,6 +12,18 @@ def run_objects_generation(params_tuple: tuple[tuple[float]],
                            y_range: tuple[float, float] = (-5, 5),
                            # plot=False,
                            white_bg: bool = True):
+    """_summary_
+
+    Args:
+        params_tuple (tuple[tuple[float]]): _description_
+        gridnum (int, optional): _description_. Defaults to 250.
+        x_range (tuple[float, float], optional): _description_. Defaults to (-5, 5).
+        y_range (tuple[float, float], optional): _description_. Defaults to (-5, 5).
+        white_bg (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     return sim_params_to_grid(params_tuple=params_tuple,
                               gridnum=gridnum,
                               x_range=x_range,
@@ -42,8 +54,30 @@ def run_back_propagation_iter(recon_array: np.ndarray,
                               filter_mode: str,
                               ) -> tuple[np.ndarray, np.ndarray, bool]:
     # theta_space,phi_space, grid_count,xy_mesh, common_width_kwargs, strength, recon_array
-    """
-    one iteration of back propagation for a given beam.
+    """one iteration of back propagation for a given beam.
+
+    Args:
+        recon_array (np.ndarray): _description_
+        theta (float): _description_
+        phi (float): _description_
+        radius (float): _description_
+        theta_count (int): _description_
+        phi_count (int): _description_
+        theta_range (int): _description_
+        phi_range (int): _description_
+        object_rows (np.ndarray): _description_
+        xy_mesh (tuple[np.ndarray, np.ndarray]): _description_
+        grid_count (int): _description_
+        strength (float): _description_
+        x_range (tuple[float, float]): _description_
+        y_range (tuple[float, float]): _description_
+        is_beam_angular (bool): _description_
+        width_mode (str): _description_
+        beam_width (float): _description_
+        filter_mode (str): _description_
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, bool]: _description_
     """
     # ray_array = np.zeros_like(recon_array)
 
@@ -83,6 +117,48 @@ def run_back_propagation_iter(recon_array: np.ndarray,
 
 
 @st.cache_data
+def compute_recon_array_series(theta_space, 
+                               phi_space, 
+                               object_rows, 
+                               xy_mesh,
+                                 grid_count,
+                               beam_strength, 
+                               x_range, 
+                               y_range, 
+                               width_mode, 
+                               filter_mode, 
+                               common_width_kwargs,
+                               )-> tuple[np.ndarray, np.ndarray]:
+    recon_array = np.zeros_like(xy_mesh[0])
+    recon_array_series = []
+    for theta in theta_space:
+        for phi in phi_space:
+            temp_recon_array, ray_array, updated = run_back_propagation_iter(
+                #recon_array=st.session_state.recon_array,
+                recon_array=recon_array,
+                theta=theta,
+                phi=phi,
+                object_rows=object_rows,
+                xy_mesh=xy_mesh,
+                grid_count=grid_count,
+                strength=beam_strength,
+                x_range=x_range,
+                y_range=y_range,
+                width_mode=width_mode,
+                filter_mode=filter_mode,
+                **common_width_kwargs
+            )
+
+            #st.session_state.recon_array = recon_array
+            if updated:
+                recon_array = temp_recon_array
+
+                frame = temp_recon_array + ray_array
+                recon_array_series.append(frame.copy())
+    return recon_array, recon_array_series
+
+
+@st.cache_data
 def run_back_propagation_vectorised(params_tuple,
                                     grid_count: int = 250,
                                     x_range: tuple = (-5, 5),
@@ -96,6 +172,24 @@ def run_back_propagation_vectorised(params_tuple,
                                     geo: str = 'a',
                                     width_val: float = 0.1,
                                     array_flattening=True) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """_summary_
+
+    Args:
+        params_tuple (_type_): _description_
+        grid_count (int, optional): _description_. Defaults to 250.
+        x_range (tuple, optional): _description_. Defaults to (-5, 5).
+        y_range (tuple, optional): _description_. Defaults to (-5, 5).
+        theta_tuple (tuple[int, float, float], optional): _description_. Defaults to ( 100, 2 * np.pi, 0).
+        phi_tuple (tuple[int, float, float], optional): _description_. Defaults to ( 50, np.deg2rad(18), np.deg2rad(-18)).
+        radius (float, optional): _description_. Defaults to 17.0.
+        mode (str, optional): _description_. Defaults to 'static'.
+        geo (str, optional): _description_. Defaults to 'a'.
+        width_val (float, optional): _description_. Defaults to 0.1.
+        array_flattening (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: _description_
+    """
     theta_space = np.linspace(theta_tuple[1], theta_tuple[2], theta_tuple[0])
     phi_space = np.linspace(phi_tuple[1], phi_tuple[2], phi_tuple[0])
 

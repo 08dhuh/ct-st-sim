@@ -4,31 +4,20 @@ import matplotlib.pyplot as plt
 
 from ct_core import ct_sim_main as ct
 from config import WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING, RECON_METHOD_MAPPING
-from session_helpers import CTInputParams, st_back_propagation, initialise_session_states, update_derived_state, initialise_playback_session_state
+from session_helpers import CTInputParams, st_back_propagation, initialise_session_state, update_derived_state, initialise_playback_session_state,cmap
 
-# TODO: add errors
-# TODO: add hash sum checks
 
 # session state initialisation
-initialise_session_states()
-# for key, value in DEFAULT_PARAM_VALUES.items():
-#     st.session_state.setdefault(key, value)
-
-# st.session_state.setdefault(
-#     "x_range", (st.session_state.x_min, st.session_state.x_max))
-# st.session_state.setdefault(
-#     "y_range", (st.session_state.y_min, st.session_state.y_max))
+initialise_session_state()
 
 
 st.title('CT Scanner Simulator')
 
 st.markdown("""
- * Use the menu at left to select data and set plot parameters
- * Your plots will appear below
+ * Use the menu at left to set plot parameters
 """)
 
 with st.sidebar:
-    # sidebar
     st.markdown("# Set Parameters")
 
     with st.expander("Object Geometry", expanded=True):
@@ -51,22 +40,21 @@ with st.sidebar:
         if st.button("➕ Add Object", disabled=len(st.session_state.object_rows) >= 4, key="add_row"):
             st.session_state.object_rows.append([0., 0., 0.])
             st.rerun()
+        st.session_state.white_bg = st.checkbox('White Background',value=True)  
         obj_tuple = tuple(tuple(obj) for obj in st.session_state.object_rows)
         obj_masks = ct.run_objects_generation(params_tuple=obj_tuple,
                                               gridnum=st.session_state.grid_count,
                                               x_range=st.session_state.x_range,
                                               y_range=st.session_state.y_range,
-                                              white_bg=st.session_state.white_bg
+                                              white_bg=True,
                                               )
-        st.session_state.white_bg = st.checkbox('White Background')        
+
         st.markdown('##### Preview')
         fig, ax = plt.subplots(figsize=(2, 2))
-        ax.imshow(obj_masks, cmap='gray', origin='lower')
+        ax.imshow(obj_masks, cmap=cmap(st.session_state.white_bg), origin='lower', vmin=0, vmax=1)
         ax.axis('off')
         st.pyplot(fig)
 
-        # ct.run_objects_generation
-        # write code from here
 
     with st.expander("Image Grid Parameters", expanded=True):
         st.markdown("### X Range")
@@ -176,34 +164,30 @@ with st.sidebar:
         st.session_state.filter_mode = FILTER_MODE_MAPPING[selected_filter]
     
     
-
-
     # hash check for update
     input_params = CTInputParams.from_session_state(st)
     if input_params.detect_hash_change(st):
         update_derived_state()
         initialise_playback_session_state()
 
+#TODO:#play, pause, skip, stop
 if st.button("▶️ Generate Reconstruction"):
-    st.session_state.isPlaying = True
+    #st.session_state.isPlaying = True
+    
     st_back_propagation()
-    st.session_state.isPlaying = False
+    
+    #st.session_state.isPlaying = False
 
-# viewports
+
 if "recon_array" in st.session_state:
-
     fig, ax = plt.subplots(figsize=(10, 10))
-    ax.imshow(st.session_state.recon_array, cmap='gray',origin='lower')
+    ax.imshow(st.session_state.recon_array, 
+              #cmap='Grays',
+              cmap=cmap(st.session_state.white_bg),
+              origin='lower')
     ax.axis('off')
     st.pyplot(fig)
 
 # debug
 st.write(dict(st.session_state))
 
-
-# def main():
-#     print("Hello from ct-st-sim!")
-
-
-# if __name__ == "__main__":
-#     main()

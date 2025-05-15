@@ -12,6 +12,22 @@ def ray_id_vectorised(theta: np.ndarray,
            y_range: tuple[float, float] = (-5, 5),
            # mode="p",
            width: tuple[float, float] | float = 0.1) -> np.ndarray:
+    """_summary_
+
+    Args:
+        theta (np.ndarray): _description_
+        phi (np.ndarray): _description_
+        R (float): _description_
+        grid_count (int): _description_
+        is_beam_angular (bool): _description_
+        xy_mesh (tuple[np.ndarray, np.ndarray] | None, optional): _description_. Defaults to None.
+        x_range (tuple[float, float], optional): _description_. Defaults to (-5, 5).
+        y_range (tuple[float, float], optional): _description_. Defaults to (-5, 5).
+        width (tuple[float, float] | float, optional): _description_. Defaults to 0.1.
+
+    Returns:
+        np.ndarray: _description_
+    """
 
     if isinstance(width, (int, float, np.generic)):
         width_p = width_n = float(width)
@@ -104,6 +120,22 @@ def ray_id_scalar(theta: float,
            y_range: tuple[float, float] = (-5, 5),
            # mode="p",
            beam_width: tuple[float, float] | float = 0.1) -> np.ndarray:
+    """_summary_
+
+    Args:
+        theta (float): _description_
+        phi (float): _description_
+        radius (float): _description_
+        grid_count (int): _description_
+        is_beam_angular (bool, optional): _description_. Defaults to True.
+        xy_mesh (tuple[np.ndarray, np.ndarray] | None, optional): _description_. Defaults to None.
+        x_range (tuple[float, float], optional): _description_. Defaults to (-5, 5).
+        y_range (tuple[float, float], optional): _description_. Defaults to (-5, 5).
+        beam_width (tuple[float, float] | float, optional): _description_. Defaults to 0.1.
+
+    Returns:
+        np.ndarray: _description_
+    """
 
     x, y = xy_mesh if xy_mesh is not None else generate_mesh_grid(
         x_range, y_range, num_grid=grid_count)
@@ -177,7 +209,17 @@ def compute_signal_mask(params_tuple,
                         theta_space: np.ndarray,
                         phi_space: np.ndarray,
                         radius: float) -> np.ndarray:
-    #binary mask indicating which rays intersect any object
+    """binary mask indicating which rays intersect any object
+
+    Args:
+        params_tuple (_type_): _description_
+        theta_space (np.ndarray): _description_
+        phi_space (np.ndarray): _description_
+        radius (float): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
 
     x1, y1, r1, x2, y2, r2, x3, y3, r3 = params_tuple
     theta = theta_space[:, None]
@@ -196,6 +238,15 @@ def compute_signal_mask(params_tuple,
 def back_propagation_from_rays(ray_array: np.ndarray, #masked
                                strength: float,
                                theta_count: int) -> np.ndarray:
+    """_summary_
+
+    Args:
+        ray_array (np.ndarray): _description_
+        theta_count (int): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
     scaled_rays = ray_array * (strength / theta_count)
     return scaled_rays.cumsum(axis=0).cumsum(axis=1).astype(np.float32)
 
