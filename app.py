@@ -3,8 +3,8 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 from ct_core import ct_sim_main as ct
-from config import DEFAULT_PARAM_VALUES, WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING, RECON_METHOD_MAPPING
-from session_helpers import CTInputParams, initialise_session_states, update_derived_params
+from config import WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING, RECON_METHOD_MAPPING
+from session_helpers import CTInputParams, st_back_propagation, initialise_session_states, update_derived_state, initialise_playback_session_state
 
 # TODO: add errors
 # TODO: add hash sum checks
@@ -158,14 +158,17 @@ with st.sidebar:
         beam_geometry = st.selectbox('Beam Geometry', ['Angular', 'Columnated'])
         st.session_state.is_beam_angular = beam_geometry == 'Angular'
         st.session_state.beam_width = st.number_input("Manual Width(deg/cm)",
-                                             value=1.,
-                                             min_value=0.)
+                                             value=0.1,
+                                             min_value=0.,
+                                             disabled=True)
         st.session_state.radius = st.number_input("Arm distance",
                                               value=17.,
                                               min_value=0.,
                                               disabled=True)
         selected_width = st.selectbox("Width Mode",
-                                  list(WIDTH_MODE_MAPPING.keys())
+                                  list(WIDTH_MODE_MAPPING.keys()),
+                                  index=1,
+                                  disabled=True
                                   )
         st.session_state.width_mode = WIDTH_MODE_MAPPING[selected_width]
         selected_filter = st.selectbox("Filter Mode",
@@ -174,20 +177,25 @@ with st.sidebar:
     
     
 
-    
-
-    
-    
 
     # hash check for update
     input_params = CTInputParams.from_session_state(st)
     if input_params.detect_hash_change(st):
-        update_derived_params()
+        update_derived_state()
+        initialise_playback_session_state()
 
+if st.button("▶️ Generate Reconstruction"):
+    st.session_state.isPlaying = True
+    st_back_propagation()
+    st.session_state.isPlaying = False
 
 # viewports
-fig, ax = plt.subplots(figsize=(10, 10))
-# ax.imshow()
+if "recon_array" in st.session_state:
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.imshow(st.session_state.recon_array, cmap='gray',origin='lower')
+    ax.axis('off')
+    st.pyplot(fig)
 
 # debug
 st.write(dict(st.session_state))

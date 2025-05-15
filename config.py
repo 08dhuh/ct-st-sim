@@ -12,7 +12,7 @@ DEFAULT_PARAM_VALUES = {
     "phi_min": -18.0,
     "object_rows": [[-2., -1.,  0.5],
                      [3., -2.,  1.],
-                     [0.,  2.,  2.]],
+                     [0.,  2.,  2.]], #TODO:rename
 
     "white_bg":True,
     'is_beam_angular':True,
@@ -30,7 +30,20 @@ USER_INPUT_PARAM_NAMES = [
     "phi_count", "phi_max", "phi_min",
     "x_min", "x_max", "y_min", "y_max",
     "grid_count", "is_beam_angular",
-    "radius", "beam_width", "width_mode"
+    "radius", "beam_width", "width_mode", "filter_mode"
+]
+
+BP_PARAM_NAMES= [
+    "theta_space",
+    "phi_space",
+    "object_rows",
+    "radius",
+    'filter_mode',
+    "grid_count",
+    "is_beam_angular",
+    "beam_width",
+    "width_mode",
+    "xy_mesh"
 ]
 
 WIDTH_MODE_MAPPING = {

@@ -96,26 +96,40 @@ def ray_id_vectorised(theta: np.ndarray,
 
 def ray_id_scalar(theta: float,
            phi: float,
-           R:float,
+           radius:float,
            grid_count:int,
            is_beam_angular: bool=True,
            xy_mesh: tuple[np.ndarray, np.ndarray] | None = None,
            x_range: tuple[float, float] = (-5, 5),
            y_range: tuple[float, float] = (-5, 5),
            # mode="p",
-           width: tuple[float, float] | float = 0.1) -> np.ndarray:
+           beam_width: tuple[float, float] | float = 0.1) -> np.ndarray:
 
     x, y = xy_mesh if xy_mesh is not None else generate_mesh_grid(
         x_range, y_range, num_grid=grid_count)
 
-    if isinstance(width, (int, float, np.generic)):
-        width_p = width_n = float(width)
-    elif isinstance(width, tuple) and len(width) == 2:
-        width_p, width_n = map(float, width)
+    if isinstance(beam_width, (int, float, np.generic)):
+        width_p = width_n = float(beam_width)
+    elif isinstance(beam_width, tuple) and len(beam_width) == 2:
+        width_p, width_n = map(float, beam_width)
+    
+    epsilon = 1e-8
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+    cos_phi_theta = np.cos(phi - theta)
+    sin_phi_theta = np.sin(phi - theta)
+    tan_theta_phi = np.tan(theta - phi)
+    tan_theta_phi = np.where(np.abs(tan_theta_phi) < epsilon, np.inf, tan_theta_phi)
 
-    dx = x - R*np.cos(theta)
-    dy = y - R*np.sin(theta)
+    R_cos_theta =  radius*cos_theta
+    R_sin_theta = radius*sin_theta
+
+    dx = x - R_cos_theta
+    dy = y - R_sin_theta
+
     d_angle = theta - phi
+
+    
 
     if is_beam_angular:  # angular beam logic
         is_vertical = abs(abs(d_angle) - np.pi /
@@ -133,42 +147,26 @@ def ray_id_scalar(theta: float,
         ray_array = (
             (slope <= upper_limit) & (lower_limit <= slope)).astype(int)
     else:  # parallel beam logic
-        is_vertical = abs((d_angle % (2 * np.pi) - np.pi/2) %
-                          np.pi - np.pi/2) <= np.pi / 4
+        is_vertical = abs((d_angle % (2*np.pi) - np.pi/2) % np.pi - np.pi/2) <= np.pi / 4
+        is_positive_v = abs(d_angle + np.pi/2) <= np.pi/2 or abs(d_angle - 3*np.pi/2) <= np.pi/2
+        is_positive_h = abs(d_angle) <= np.pi/2 or abs(d_angle - 2*np.pi) <= np.pi/2
+
+        term1_v = (y - R_sin_theta - width_p*cos_phi_theta)/tan_theta_phi + R_cos_theta + width_p*sin_phi_theta
+        term2_v = (y - R_sin_theta + width_n *cos_phi_theta)/tan_theta_phi + R_cos_theta - width_n*sin_phi_theta
+
+        term1_h = tan_theta_phi*(x - R_cos_theta - width_p*sin_phi_theta) + R_sin_theta + width_p* cos_phi_theta
+        term2_h = tan_theta_phi*(x - R_cos_theta + width_n*sin_phi_theta) + R_sin_theta - width_n *cos_phi_theta
+        ray_array = np.zeros_like(x, dtype=int)
         if is_vertical:
-            is_positive = abs(d_angle + np.pi / 2) <= np.pi / \
-                2 or abs(d_angle - 3 * np.pi / 2) <= np.pi / 2
-            if is_positive:
-                ray_array = (np.greater_equal(
-                    (y - R * np.sin(theta) - width_p * np.cos(phi - theta)) / (np.tan(theta - phi)) +
-                    R * np.cos(theta) + width_p * np.sin(phi - theta), x)
-                    * np.greater_equal(x, (y - R * np.sin(theta) + width_n * np.cos(phi - theta)) / (
-                        np.tan(theta - phi))
-                    + R * np.cos(theta) - width_n * np.sin(phi - theta))).astype(int)
+            if is_positive_v:
+                ray_array = ((term1_v >= x) & (x>=term2_v)).astype(int)
             else:
-                ray_array = (np.less_equal(
-                    (y - R * np.sin(theta) - width_p * np.cos(phi - theta)) / (np.tan(theta - phi)) +
-                    R * np.cos(theta) + width_p * np.sin(phi - theta), x)
-                    * np.less_equal(x, (y - R * np.sin(theta) + width_n * np.cos(phi - theta)) / (
-                        np.tan(theta - phi)) +
-                    R * np.cos(theta) - width_n * np.sin(phi - theta))).astype(int)
-        else:  # horizontal
-            if abs(d_angle) <= np.pi / 2 or abs(d_angle - 2 * np.pi) <= np.pi / 2:
-                ray_array = (np.greater_equal(
-                    np.tan(theta - phi) * (x - R * np.cos(theta) -
-                                           width_p * np.sin(phi - theta))
-                    + R * np.sin(theta) + width_p * np.cos(phi - theta), y)
-                    * np.greater_equal(y, np.tan(theta - phi) * (
-                        x - R * np.cos(theta) + width_n * np.sin(phi - theta))
-                    + R * np.sin(theta) - width_n * np.cos(phi - theta))).astype(int)
+                ray_array = ((term1_v <= x) & (x<=term2_v)).astype(int)
+        else:
+            if is_positive_h:
+                ray_array = ((term1_h >= y) & (y>=term2_h)).astype(int)
             else:
-                ray_array = (np.less_equal(
-                    np.tan(theta - phi) * (x - R * np.cos(theta) -
-                                           width_p * np.sin(phi - theta)) + R * np.sin(theta)
-                    + width_p * np.cos(phi - theta), y)
-                    * np.less_equal(y, np.tan(theta - phi) * (
-                        x - R * np.cos(theta) + width_n * np.sin(phi - theta))
-                    + R * np.sin(theta) - width_n * np.cos(phi - theta))).astype(int)
+                ray_array = ((term1_h <= y) & (y<=term2_h)).astype(int)
 
     return ray_array
 
