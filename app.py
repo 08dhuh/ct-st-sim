@@ -1,23 +1,74 @@
+import numpy as np
 import streamlit as st
 
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 from ct_core import ct_sim_main as ct
 from config import WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING, RECON_METHOD_MAPPING
-from session_helpers import CTInputParams, st_back_propagation, initialise_session_state, update_derived_state, initialise_playback_session_state,cmap
+from session_helpers import CTInputParams, st_back_propagation, st_radon_transform, initialise_session_state, update_derived_state, initialise_playback_session_state, cmap, apply_cutoff_filter, st_playback_stream
 
+st.markdown("""
+    <style>
+    
+           /* Remove the entire Streamlit header */
+            header[data-testid="stHeader"] {
+            display: none !important;
+            }
+            /* header */
+            .st-emotion-cache-1w723zb {
+            padding-top: 0rem !important;
+            }
 
+            /* Optional: remove extra space left behind */
+            .main .block-container {
+            padding-top: 0rem !important;
+            }
+           
+           /* Remove blank space at the center canvas */ 
+           .st-emotion-cache-z5fcl4 {
+               position: relative;
+               top: -62px;
+               }
+           
+           /* Make the toolbar transparent and the content below it clickable */ 
+           .st-emotion-cache-18ni7ap {
+               pointer-events: none;
+               background: rgb(255 255 255 / 0%)
+               }
+           .st-emotion-cache-zq5wmm {
+               pointer-events: auto;
+               background: rgb(255 255 255);
+               border-radius: 5px;
+               }
+            /* Hide the entire sidebar header (logo spacer + collapse button) */
+            /*[data-testid="stSidebarHeader"] {
+                display: none !important;
+            }*/
+            /* Reduce the sidebar padding */
+            .st-emotion-cache-1xgtwnd {
+                padding: 0rem !important;
+                }
+                }
+
+            
+    </style>
+    """, unsafe_allow_html=True)
 # session state initialisation
 initialise_session_state()
 
 
-st.title('CT Scanner Simulator')
-
-st.markdown("""
- * Use the menu at left to set plot parameters
-""")
+# st.title('CT Scanner Simulator')
 
 with st.sidebar:
+    st.markdown("# Filtering")
+
+    with st.expander("Cutoff Threshold", expanded=True):
+        filter_cutoff = st.session_state.get("filter_cutoff", 0.0)
+        soft_cutoff = st.session_state.get("soft_cutoff", False)
+        st.slider("Signal Cut-Off Threshold", 0.0,
+                  1.0, key="filter_cutoff", step=0.01, label_visibility="hidden")
+        st.checkbox("Soft Cutoff", key="soft_cutoff")
     st.markdown("# Set Parameters")
 
     with st.expander("Object Geometry", expanded=True):
@@ -40,7 +91,7 @@ with st.sidebar:
         if st.button("➕ Add Object", disabled=len(st.session_state.object_rows) >= 4, key="add_row"):
             st.session_state.object_rows.append([0., 0., 0.])
             st.rerun()
-        st.session_state.white_bg = st.checkbox('White Background',value=True)  
+        st.session_state.white_bg = st.checkbox('White Background', value=True)
         obj_tuple = tuple(tuple(obj) for obj in st.session_state.object_rows)
         obj_masks = ct.run_objects_generation(params_tuple=obj_tuple,
                                               gridnum=st.session_state.grid_count,
@@ -51,15 +102,14 @@ with st.sidebar:
 
         st.markdown('##### Preview')
         fig, ax = plt.subplots(figsize=(2, 2))
-        ax.imshow(obj_masks, cmap=cmap(st.session_state.white_bg), origin='lower', vmin=0, vmax=1)
+        ax.imshow(obj_masks, cmap=cmap(not st.session_state.white_bg),
+                  origin='lower', vmin=0, vmax=1)
         ax.axis('off')
         st.pyplot(fig)
-
 
     with st.expander("Image Grid Parameters", expanded=True):
         st.markdown("### X Range")
         col_x1, col_x2 = st.columns(2)
-
 
         with col_x1:
             st.session_state.x_min = st.number_input("X min",
@@ -141,53 +191,95 @@ with st.sidebar:
             )
 
         selected_recon_method = st.selectbox('Reconstruction Method',
-                                         list(RECON_METHOD_MAPPING.keys()))
+                                             list(RECON_METHOD_MAPPING.keys()))
         st.session_state.recon_method = RECON_METHOD_MAPPING[selected_recon_method]
-        beam_geometry = st.selectbox('Beam Geometry', ['Angular', 'Columnated'])
+        beam_geometry = st.selectbox(
+            'Beam Geometry', ['Angular', 'Columnated'])
         st.session_state.is_beam_angular = beam_geometry == 'Angular'
         st.session_state.beam_width = st.number_input("Manual Width(deg/cm)",
-                                             value=0.1,
-                                             min_value=0.,
-                                             disabled=True)
+                                                      value=0.1,
+                                                      min_value=0.,
+                                                      disabled=True)
         st.session_state.radius = st.number_input("Arm distance",
-                                              value=17.,
-                                              min_value=0.,
-                                              disabled=True)
+                                                  value=17.,
+                                                  min_value=0.,
+                                                  disabled=True)
         selected_width = st.selectbox("Width Mode",
-                                  list(WIDTH_MODE_MAPPING.keys()),
-                                  index=1,
-                                  disabled=True
-                                  )
+                                      list(WIDTH_MODE_MAPPING.keys()),
+                                      index=1,
+                                      disabled=True
+                                      )
         st.session_state.width_mode = WIDTH_MODE_MAPPING[selected_width]
         selected_filter = st.selectbox("Filter Mode",
-                                    list(FILTER_MODE_MAPPING.keys()))
+                                       list(FILTER_MODE_MAPPING.keys()))
         st.session_state.filter_mode = FILTER_MODE_MAPPING[selected_filter]
-    
-    
+
     # hash check for update
     input_params = CTInputParams.from_session_state(st)
     if input_params.detect_hash_change(st):
         update_derived_state()
         initialise_playback_session_state()
 
-#TODO:#play, pause, skip, stop
+# TODO:#play, pause, skip, stop
+
+
+tab1, tab2 = st.tabs(["🖼 Final Plot", "🎥 Video Playback"])
+
+with tab1:
+    if "viewport_data" in st.session_state:
+        filtered_data = apply_cutoff_filter(
+            st.session_state.viewport_data,
+            threshold=filter_cutoff,
+            soft=soft_cutoff
+        )
+        fig = px.imshow(
+            filtered_data,
+            origin='lower',
+            zmin=0,
+            zmax=1,
+            color_continuous_scale=cmap(not st.session_state.white_bg)
+        )
+        fig.update_layout(
+            coloraxis_showscale=False,
+            dragmode='zoom',
+            margin=dict(l=0, r=0, t=0, b=0),
+            width=700,
+            height=700
+        )
+        st.plotly_chart(fig, use_container_width=False,
+                        clear_figure=True)
+    # st.plotly_chart(final_plot)
+
+with tab2:
+    st.write('testing 2')
+    # st.video("output.mp4")
+
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # ax.imshow(filtered_data,
+    #           # cmap='Grays',
+    #           cmap=cmap(st.session_state.white_bg),
+    #           origin='lower')
+    # ax.axis('off')
+    # st.pyplot(fig)
+
+
+# with slider_placeholder:
+#
+
+# with checkbox_placeholder:
+#     st.checkbox("Soft Cutoff", key="soft_cutoff")
+
 if st.button("▶️ Generate Reconstruction"):
-    #st.session_state.isPlaying = True
-    
-    st_back_propagation()
-    
-    #st.session_state.isPlaying = False
+    # st.session_state.isPlaying = True
+    match st.session_state.recon_method:
+        case 'bp':
+            st_back_propagation()
+        case 'rt':
+            st_radon_transform()
+        case _:
+            raise ValueError('Invalid recon method detected.')
+    st.session_state.viewport_data = st.session_state.recon_array
 
-
-if "recon_array" in st.session_state:
-    fig, ax = plt.subplots(figsize=(10, 10))
-    ax.imshow(st.session_state.recon_array, 
-              #cmap='Grays',
-              cmap=cmap(st.session_state.white_bg),
-              origin='lower')
-    ax.axis('off')
-    st.pyplot(fig)
-
+st.write('\n')
 # debug
 st.write(dict(st.session_state))
-

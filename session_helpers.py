@@ -49,7 +49,9 @@ def initialise_session_state():
     initialise_default_session_state()
     update_derived_state()
     initialise_playback_session_state()
-    init_recon_array()
+    initialise_result_session_state()
+    initialise_filter_session_state()
+
     
 def initialise_default_session_state():
     for key, value in DEFAULT_PARAM_VALUES.items():
@@ -57,22 +59,43 @@ def initialise_default_session_state():
 
 def initialise_playback_session_state():    
     st.session_state.update({
-        'recon_array_series': [],
         'isPlaying': False,
-        'play_index': 0
+        'play_index': 0,
+        #playback control
+        #'viewport_data': _generate_empty_recon_array()
+
+    })
+    if 'viewport_data' not in st.session_state:
+        st.session_state.viewport_data = _generate_empty_recon_array()
+
+def initialise_filter_session_state():
+    if 'filter_cutoff' not in st.session_state:
+        st.session_state.filter_cutoff = 0.0
+    if 'soft_cutoff' not in st.session_state:
+        st.session_state.soft_cutoff = False
+    # st.session_state.update({
+    #     'filter_cutoff': 0.0,
+    #     'soft_cutoff': False
+    # })
+
+def initialise_result_session_state():
+    st.session_state.update({
+        'recon_array': _generate_empty_recon_array(),
+        'recon_array_series':[]
     })
 
-def init_recon_array(flush:bool=False):
-    """_summary_
+def _generate_empty_recon_array(grid_count:int | None = None) -> np.ndarray:
+    """returns an empty recon array
 
     Raises:
         ValueError: _description_
     """
+    if grid_count:
+        return np.zeros((grid_count, grid_count))
     if 'xy_mesh' not in st.session_state:
         raise ValueError("xy_mesh must be initialized before recon_array.")
 
-    if 'recon_array' not in st.session_state or flush:
-        st.session_state.recon_array = np.zeros_like(st.session_state.xy_mesh[0])
+    return np.zeros_like(st.session_state.xy_mesh[0])
     
 
 
@@ -106,7 +129,7 @@ def update_derived_state():
 
     )
 
-    theta, phi, mesh, common_width_kwargs, strength, recon_array = process_params(**args) #do not update recon_array after every st.rerun
+    theta, phi, mesh, common_width_kwargs, strength, recon_array = process_params(**args) 
     st.session_state.update({
         "x_range": x_range,
         "y_range": y_range,
@@ -119,9 +142,10 @@ def update_derived_state():
     })
 
 
-def st_back_propagation():
 
-    init_recon_array(flush=True)
+
+def st_back_propagation():
+    st_playback_stop()
 
     recon_array, recon_array_series = compute_recon_array_series(
         theta_space=st.session_state.theta_space,
@@ -143,14 +167,44 @@ def st_back_propagation():
     #                          'recon_array_series': recon_array_series})
 
 def st_radon_transform():
+    st_playback_stop()
     #TODO: initalisation
     pass
 
-def st_playback():
-    pass
+def st_playback_stream():
+    series = st.session_state.recon_array_series
+    index = st.session_state.play_index
+
+    if not series or index >= len(series):
+        st.session_state.viewport_data = st.session_state.recon_array
+        st.session_state.isPlaying = False
+        st.session_state.play_index = 0
+        return
+
+    st.session_state.viewport_data = series[index]
+    st.session_state.play_index += 1
+    st.session_state.isPlaying = True
+    st.rerun()
     #TODO: write code here
 
 
+def st_playback_stop():
+    initialise_playback_session_state()
+    initialise_result_session_state()
+
 #ui helper
 def cmap(white_bg:bool):
-    return 'Greys' if white_bg else 'Greys_r'
+    return 'gray' if white_bg else 'gray_r'
+
+
+def apply_cutoff_filter(array: np.ndarray, 
+                        threshold: float, 
+                        soft: bool = False) -> np.ndarray:
+    if np.max(array) == 0:
+        return np.zeros_like(array)
+    normalised_arr = array / np.max(array)
+    if soft:
+        result = np.clip((normalised_arr - threshold) / (1 - threshold), 0, 1)
+    else:
+        result = np.where(normalised_arr >= threshold, normalised_arr, 0)
+    return result
