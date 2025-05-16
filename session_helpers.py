@@ -4,7 +4,7 @@ import numpy as np
 from dataclasses import dataclass
 from ct_core.ct_sim_main import compute_recon_array_series
 from ct_core.pipeline_utils import process_params
-from config import USER_INPUT_PARAM_NAMES, DEFAULT_PARAM_VALUES, BP_PARAM_NAMES
+from config import USER_INPUT_PARAM_NAMES, DEFAULT_PARAM_VALUES
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,35 +48,24 @@ def initialise_session_state():
     """  
     initialise_default_session_state()
     update_derived_state()
-    initialise_playback_session_state()
     initialise_result_session_state()
     initialise_filter_session_state()
-
+    if 'viewport_data' not in st.session_state:
+        st.session_state.viewport_data = _generate_empty_recon_array()
+    if 'viewport_data_series' not in st.session_state:
+        st.session_state.viewport_data_series = []
     
 def initialise_default_session_state():
     for key, value in DEFAULT_PARAM_VALUES.items():
         st.session_state.setdefault(key, value)
 
-def initialise_playback_session_state():    
-    st.session_state.update({
-        'isPlaying': False,
-        'play_index': 0,
-        #playback control
-        #'viewport_data': _generate_empty_recon_array()
 
-    })
-    if 'viewport_data' not in st.session_state:
-        st.session_state.viewport_data = _generate_empty_recon_array()
 
 def initialise_filter_session_state():
     if 'filter_cutoff' not in st.session_state:
         st.session_state.filter_cutoff = 0.0
     if 'soft_cutoff' not in st.session_state:
         st.session_state.soft_cutoff = False
-    # st.session_state.update({
-    #     'filter_cutoff': 0.0,
-    #     'soft_cutoff': False
-    # })
 
 def initialise_result_session_state():
     st.session_state.update({
@@ -145,8 +134,6 @@ def update_derived_state():
 
 
 def st_back_propagation():
-    st_playback_stop()
-
     recon_array, recon_array_series = compute_recon_array_series(
         theta_space=st.session_state.theta_space,
         phi_space=st.session_state.phi_space,
@@ -163,36 +150,14 @@ def st_back_propagation():
 
     st.session_state.recon_array = recon_array
     st.session_state.recon_array_series = recon_array_series
-    # st.session_state.update({'recon_array': recon_array,
-    #                          'recon_array_series': recon_array_series})
+
 
 def st_radon_transform():
-    st_playback_stop()
-    #TODO: initalisation
+    #TODO: 
     pass
 
-def st_playback_stream():
-    series = st.session_state.recon_array_series
-    index = st.session_state.play_index
-
-    if not series or index >= len(series):
-        st.session_state.viewport_data = st.session_state.recon_array
-        st.session_state.isPlaying = False
-        st.session_state.play_index = 0
-        return
-
-    st.session_state.viewport_data = series[index]
-    st.session_state.play_index += 1
-    st.session_state.isPlaying = True
-    st.rerun()
-    #TODO: write code here
 
 
-def st_playback_stop():
-    initialise_playback_session_state()
-    initialise_result_session_state()
-
-#ui helper
 def cmap(white_bg:bool):
     return 'gray' if white_bg else 'gray_r'
 

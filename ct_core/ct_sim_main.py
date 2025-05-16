@@ -121,7 +121,7 @@ def compute_recon_array_series(theta_space,
                                phi_space, 
                                object_rows, 
                                xy_mesh,
-                                 grid_count,
+                                grid_count,
                                beam_strength, 
                                x_range, 
                                y_range, 
@@ -169,7 +169,8 @@ def run_back_propagation_vectorised(params_tuple,
                                         50, np.deg2rad(18), np.deg2rad(-18)),
                                     radius: float = 17.0,
                                     mode: str = 'static',
-                                    geo: str = 'a',
+                                    #geo: str = 'a',
+                                    is_angular:bool = True,
                                     width_val: float = 0.1,
                                     array_flattening=True) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """_summary_
@@ -188,7 +189,7 @@ def run_back_propagation_vectorised(params_tuple,
         array_flattening (bool, optional): _description_. Defaults to True.
 
     Returns:
-        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: _description_
+        tuple[np.ndarray, np.ndarray]: final recon array and the generated CT scanning frames
     """
     theta_space = np.linspace(theta_tuple[1], theta_tuple[2], theta_tuple[0])
     phi_space = np.linspace(phi_tuple[1], phi_tuple[2], phi_tuple[0])
@@ -197,19 +198,20 @@ def run_back_propagation_vectorised(params_tuple,
     theta_range = theta_tuple[2] - theta_tuple[1]
     phi_range = phi_tuple[2] - phi_tuple[1]
 
-    is_angular = geo == 'a'
+    #is_angular = geo == 'a'
     width = phi_width(mode, is_angular, width_val, 0, 0,
                       phi_tuple[0], theta_tuple[0], phi_range, theta_range, radius)
 
-    ray_array = ray_id_vectorised(theta_space, phi_space, radius, grid_count,
+    ray_arrays = ray_id_vectorised(theta_space, phi_space, radius, grid_count,
                                   is_beam_angular=is_angular, xy_mesh=xy_mesh, width=width)
 
     mask = compute_signal_mask(params_tuple, theta_space, phi_space, radius)[
         :, :, None, None]
-    ray_array_masked = ray_array * mask
-    recon_array = back_propagation_from_rays(
-        ray_array_masked, strength=1.0, theta_count=theta_tuple[0])
+    ray_arrays_masked = ray_arrays * mask
+    recon_array_series = back_propagation_from_rays(
+        ray_arrays_masked, strength=1.0, theta_count=theta_tuple[0])
     if array_flattening:
-        ray_array = ray_array.reshape(-1, grid_count, grid_count)
-        recon_array = recon_array.reshape(-1, grid_count, grid_count)
-    return ray_array, recon_array
+        ray_arrays = ray_arrays.reshape(-1, grid_count, grid_count)
+        recon_array_series = recon_array_series.reshape(-1, grid_count, grid_count)
+    #return ray_arrays, recon_array_series
+    return recon_array_series[-1], ray_arrays + recon_array_series

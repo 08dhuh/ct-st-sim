@@ -106,8 +106,56 @@ def ray_id_vectorised(theta: np.ndarray,
         ray_array += mask_hp * ((term1_h >= y) & (y >= term2_h))
         ray_array += mask_hn * ((term1_h <= y) & (y <= term2_h))
         
-        ray_array = ray_array.astype(int)
+        #ray_array = ray_array.astype(int)
+        ray_array = ray_array.astype(np.uint8)
     return ray_array
+
+
+
+def compute_signal_mask(params_tuple,
+                        theta_space: np.ndarray,
+                        phi_space: np.ndarray,
+                        radius: float) -> np.ndarray:
+    """binary mask indicating which rays intersect any object
+
+    Args:
+        params_tuple (_type_): _description_
+        theta_space (np.ndarray): _description_
+        phi_space (np.ndarray): _description_
+        radius (float): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
+
+    x1, y1, r1, x2, y2, r2, x3, y3, r3 = params_tuple
+    theta = theta_space[:, None]
+    phi = phi_space[None, :]
+
+    dx = lambda x: x - np.cos(theta) * radius
+    dy = lambda y: y - np.sin(theta) * radius
+
+    def in_object(x, y, r):
+        nu = np.sin(phi - theta) * dx(x) + np.cos(phi - theta) * dy(y)
+        return (np.abs(nu) <= r)
+
+    mask = in_object(x1, y1, r1) | in_object(x2, y2, r2) | in_object(x3, y3, r3)
+    return mask.astype(np.float32)
+
+def back_propagation_from_rays(ray_array: np.ndarray, #masked
+                               strength: float,
+                               theta_count: int) -> np.ndarray:
+    """_summary_
+
+    Args:
+        ray_array (np.ndarray): _description_
+        theta_count (int): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
+    scaled_rays = ray_array * (strength / theta_count)
+    return scaled_rays.cumsum(axis=0).cumsum(axis=1).astype(np.float32)
 
 
 def ray_id_scalar(theta: float,
@@ -203,51 +251,5 @@ def ray_id_scalar(theta: float,
     return ray_array
 
 
-
-
-def compute_signal_mask(params_tuple,
-                        theta_space: np.ndarray,
-                        phi_space: np.ndarray,
-                        radius: float) -> np.ndarray:
-    """binary mask indicating which rays intersect any object
-
-    Args:
-        params_tuple (_type_): _description_
-        theta_space (np.ndarray): _description_
-        phi_space (np.ndarray): _description_
-        radius (float): _description_
-
-    Returns:
-        np.ndarray: _description_
-    """
-
-    x1, y1, r1, x2, y2, r2, x3, y3, r3 = params_tuple
-    theta = theta_space[:, None]
-    phi = phi_space[None, :]
-
-    dx = lambda x: x - np.cos(theta) * radius
-    dy = lambda y: y - np.sin(theta) * radius
-
-    def in_object(x, y, r):
-        nu = np.sin(phi - theta) * dx(x) + np.cos(phi - theta) * dy(y)
-        return (np.abs(nu) <= r)
-
-    mask = in_object(x1, y1, r1) | in_object(x2, y2, r2) | in_object(x3, y3, r3)
-    return mask.astype(np.float32)
-
-def back_propagation_from_rays(ray_array: np.ndarray, #masked
-                               strength: float,
-                               theta_count: int) -> np.ndarray:
-    """_summary_
-
-    Args:
-        ray_array (np.ndarray): _description_
-        theta_count (int): _description_
-
-    Returns:
-        np.ndarray: _description_
-    """
-    scaled_rays = ray_array * (strength / theta_count)
-    return scaled_rays.cumsum(axis=0).cumsum(axis=1).astype(np.float32)
 
 

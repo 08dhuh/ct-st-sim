@@ -1,12 +1,19 @@
-import numpy as np
 import streamlit as st
 
 import matplotlib.pyplot as plt
-import plotly.express as px
 
 from ct_core import ct_sim_main as ct
 from config import WIDTH_MODE_MAPPING, FILTER_MODE_MAPPING, RECON_METHOD_MAPPING
-from session_helpers import CTInputParams, st_back_propagation, st_radon_transform, initialise_session_state, update_derived_state, initialise_playback_session_state, cmap, apply_cutoff_filter, st_playback_stream
+from session_helpers import CTInputParams, st_back_propagation, st_radon_transform, initialise_session_state, update_derived_state, cmap, apply_cutoff_filter
+from vid_utils import plot_array_px
+
+import time
+
+st.set_page_config(
+    page_title="CT Scanner Simulator",
+    page_icon="🩻",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
     <style>
@@ -54,13 +61,58 @@ st.markdown("""
             
     </style>
     """, unsafe_allow_html=True)
+
 # session state initialisation
 initialise_session_state()
 
 
-# st.title('CT Scanner Simulator')
+plot_dynamic = st.empty()
+plot_static = st.container()
+
+
+filter_cutoff = st.session_state.get("filter_cutoff", 0.0)
+soft_cutoff = st.session_state.get("soft_cutoff", False)
+
+step = 10
+delay = 0.05
+
+
 
 with st.sidebar:
+    c1, c2,_ = st.columns([1, 1, 1])
+    with c1:
+        if st.button(" Run Scan "):
+
+            match st.session_state.recon_method:
+                case 'bp':
+                    st_back_propagation()
+                case 'rt':
+                    # st_radon_transform()
+                    # TODO:
+                    raise Exception("💀 Sorry! This feature is not implemented yet! Please hit F5 and try another💀")
+                case _:
+                    raise ValueError('Invalid recon method detected.')
+            st.session_state.viewport_data = st.session_state.recon_array
+            st.session_state.viewport_data_series = st.session_state.recon_array_series
+            st.session_state.update({'play_triggered': True})
+
+    with c2:
+        is_playing = st.session_state.get("is_playing", False)
+        play_triggered = st.session_state.get("play_triggered", False)
+        disabled = len(st.session_state.get("viewport_data_series", [])) == 0
+        if play_triggered:
+            if st.button("⏹️ Stop", help="Stop animation early"):
+                st.session_state.stop_requested = True
+        else:
+            if st.button("▶️ Replay", disabled=disabled, help="Start animation"):
+                st.session_state.play_triggered = True
+
+                st.rerun()
+        
+
+            
+
+
     st.markdown("# Filtering")
 
     with st.expander("Cutoff Threshold", expanded=True):
@@ -199,7 +251,7 @@ with st.sidebar:
         st.session_state.beam_width = st.number_input("Manual Width(deg/cm)",
                                                       value=0.1,
                                                       min_value=0.,
-                                                      disabled=True)
+                                                      disabled=False)
         st.session_state.radius = st.number_input("Arm distance",
                                                   value=17.,
                                                   min_value=0.,
@@ -207,7 +259,7 @@ with st.sidebar:
         selected_width = st.selectbox("Width Mode",
                                       list(WIDTH_MODE_MAPPING.keys()),
                                       index=1,
-                                      disabled=True
+                                      disabled=False
                                       )
         st.session_state.width_mode = WIDTH_MODE_MAPPING[selected_width]
         selected_filter = st.selectbox("Filter Mode",
@@ -218,68 +270,66 @@ with st.sidebar:
     input_params = CTInputParams.from_session_state(st)
     if input_params.detect_hash_change(st):
         update_derived_state()
-        initialise_playback_session_state()
-
-# TODO:#play, pause, skip, stop
 
 
-tab1, tab2 = st.tabs(["🖼 Final Plot", "🎥 Video Playback"])
 
-with tab1:
-    if "viewport_data" in st.session_state:
+if st.session_state.get("play_triggered", False):
+    st.session_state.is_playing = True
+    plot_static.write("")
+    for i in range(0, len(st.session_state.viewport_data_series), step):
+        if st.session_state.get("stop_requested", False):
+            break
+        frame = st.session_state.viewport_data_series[i]
+        fig = plot_array_px(frame, white_bg=st.session_state.white_bg)
+        fig.update_layout(transition_duration=0)
+        plot_dynamic.plotly_chart(fig, use_container_width=False)
+        time.sleep(delay)
+
+
+    filtered_data = apply_cutoff_filter(
+        st.session_state.viewport_data,
+        threshold=st.session_state.get("filter_cutoff", 0.0),
+        soft=st.session_state.get("soft_cutoff", False)
+    )
+    x_vals = st.session_state.xy_mesh[0][0]
+    y_vals = st.session_state.xy_mesh[1][:, 0] 
+    fig = plot_array_px(
+        filtered_data, 
+        white_bg=st.session_state.white_bg,
+        x_vals=x_vals,
+        y_vals=y_vals)
+    plot_dynamic.plotly_chart(fig, use_container_width=False,key='final')
+
+    st.session_state.play_triggered = False            
+    st.session_state.is_playing = False
+    st.session_state.stop_requested = False
+    st.rerun()
+    
+
+if "viewport_data" in st.session_state:
+    x_vals = st.session_state.xy_mesh[0][0]
+    y_vals = st.session_state.xy_mesh[1][:, 0] 
+    if not st.session_state.get("play_triggered", False):        
         filtered_data = apply_cutoff_filter(
             st.session_state.viewport_data,
             threshold=filter_cutoff,
             soft=soft_cutoff
         )
-        fig = px.imshow(
-            filtered_data,
-            origin='lower',
-            zmin=0,
-            zmax=1,
-            color_continuous_scale=cmap(not st.session_state.white_bg)
-        )
-        fig.update_layout(
-            coloraxis_showscale=False,
-            dragmode='zoom',
-            margin=dict(l=0, r=0, t=0, b=0),
-            width=700,
-            height=700
-        )
-        st.plotly_chart(fig, use_container_width=False,
-                        clear_figure=True)
-    # st.plotly_chart(final_plot)
-
-with tab2:
-    st.write('testing 2')
-    # st.video("output.mp4")
-
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # ax.imshow(filtered_data,
-    #           # cmap='Grays',
-    #           cmap=cmap(st.session_state.white_bg),
-    #           origin='lower')
-    # ax.axis('off')
-    # st.pyplot(fig)
+        fig = plot_array_px(filtered_data, 
+                            white_bg=st.session_state.white_bg,
+                            x_vals=x_vals,
+                            y_vals=y_vals)
+        plot_static.plotly_chart(fig, use_container_width=False)
 
 
-# with slider_placeholder:
-#
-
-# with checkbox_placeholder:
-#     st.checkbox("Soft Cutoff", key="soft_cutoff")
-
-if st.button("▶️ Generate Reconstruction"):
-    # st.session_state.isPlaying = True
-    match st.session_state.recon_method:
-        case 'bp':
-            st_back_propagation()
-        case 'rt':
-            st_radon_transform()
-        case _:
-            raise ValueError('Invalid recon method detected.')
-    st.session_state.viewport_data = st.session_state.recon_array
 
 st.write('\n')
+
+st.markdown("""
+**Instructions**
+
+- Expand the sidebar using the `>` icon in the top-left corner if it's collapsed.
+- Will import your original documentation and add more controls later
+            """)
 # debug
-st.write(dict(st.session_state))
+# st.write(dict(st.session_state))
