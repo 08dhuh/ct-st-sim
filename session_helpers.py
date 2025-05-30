@@ -7,6 +7,8 @@ from ct_core.pipeline_utils import process_params
 from config import USER_INPUT_PARAM_NAMES, DEFAULT_PARAM_VALUES
 
 
+#TODO: fix frame skips
+
 @dataclass(frozen=True, slots=True)
 class CTInputParams:
     theta_count: int

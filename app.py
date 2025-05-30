@@ -73,8 +73,8 @@ plot_static = st.container()
 filter_cutoff = st.session_state.get("filter_cutoff", 0.0)
 soft_cutoff = st.session_state.get("soft_cutoff", False)
 
-step = 10
-delay = 0.05
+step = 4
+delay = 0.01
 
 
 
