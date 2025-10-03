@@ -14,8 +14,8 @@ def generate_mesh_grid(x_range: tuple[float, float],
     Returns:
         _type_: _description_
     """
-    return np.meshgrid(np.linspace(x_range[0], x_range[1], num_grid),
-                       np.linspace(y_range[0], y_range[1], num_grid))
+    return np.meshgrid(np.linspace(x_range[0], x_range[1], num_grid, dtype=np.float32),
+                       np.linspace(y_range[0], y_range[1], num_grid, dtype=np.float32))
 
 
 def sim_params_to_grid(params_tuple: tuple[tuple[float]],  # ((x1, y1, r1),(x2, y2, r2),...)
@@ -228,3 +228,8 @@ def extract_common_width_kwargs(is_beam_angular: bool,
         "theta_range": theta_range,
         "radius": radius,
     }
+
+
+def to_uint8(array: np.ndarray) -> np.ndarray:
+    norm = (array - array.min()) / (array.max() - array.min() + 1e-8)
+    return (norm * 255).astype(np.uint8)

@@ -1,5 +1,5 @@
 import streamlit as st
-
+import numpy as np
 import matplotlib.pyplot as plt
 
 from ct_core import ct_sim_main as ct
@@ -73,13 +73,12 @@ plot_static = st.container()
 filter_cutoff = st.session_state.get("filter_cutoff", 0.0)
 soft_cutoff = st.session_state.get("soft_cutoff", False)
 
-step = 4
+play_step = 4
 delay = 0.01
 
 
-
 with st.sidebar:
-    c1, c2,_ = st.columns([1, 1, 1])
+    c1, c2, _ = st.columns([1, 1, 1])
     with c1:
         if st.button(" Run Scan "):
 
@@ -89,7 +88,8 @@ with st.sidebar:
                 case 'rt':
                     # st_radon_transform()
                     # TODO:
-                    raise Exception("💀 Sorry! This feature is not implemented yet! Please hit F5 and try another💀")
+                    raise Exception(
+                        "💀 Sorry! This feature is not implemented yet! Please hit F5 and try another💀")
                 case _:
                     raise ValueError('Invalid recon method detected.')
             st.session_state.viewport_data = st.session_state.recon_array
@@ -108,10 +108,6 @@ with st.sidebar:
                 st.session_state.play_triggered = True
 
                 st.rerun()
-        
-
-            
-
 
     st.markdown("# Filtering")
 
@@ -272,19 +268,19 @@ with st.sidebar:
         update_derived_state()
 
 
-
 if st.session_state.get("play_triggered", False):
     st.session_state.is_playing = True
     plot_static.write("")
-    for i in range(0, len(st.session_state.viewport_data_series), step):
+    for i in range(0, len(st.session_state.viewport_data_series), play_step):
         if st.session_state.get("stop_requested", False):
             break
-        frame = st.session_state.viewport_data_series[i]
+
+        frame= st.session_state.viewport_data_series[i]
+        
         fig = plot_array_px(frame, white_bg=st.session_state.white_bg)
         fig.update_layout(transition_duration=0)
         plot_dynamic.plotly_chart(fig, use_container_width=False)
         time.sleep(delay)
-
 
     filtered_data = apply_cutoff_filter(
         st.session_state.viewport_data,
@@ -292,35 +288,34 @@ if st.session_state.get("play_triggered", False):
         soft=st.session_state.get("soft_cutoff", False)
     )
     x_vals = st.session_state.xy_mesh[0][0]
-    y_vals = st.session_state.xy_mesh[1][:, 0] 
+    y_vals = st.session_state.xy_mesh[1][:, 0]
     fig = plot_array_px(
-        filtered_data, 
+        filtered_data,
         white_bg=st.session_state.white_bg,
         x_vals=x_vals,
         y_vals=y_vals)
-    plot_dynamic.plotly_chart(fig, use_container_width=False,key='final')
+    plot_dynamic.plotly_chart(fig, use_container_width=False, key='final')
 
-    st.session_state.play_triggered = False            
+    st.session_state.play_triggered = False
     st.session_state.is_playing = False
     st.session_state.stop_requested = False
     st.rerun()
-    
+
 
 if "viewport_data" in st.session_state:
     x_vals = st.session_state.xy_mesh[0][0]
-    y_vals = st.session_state.xy_mesh[1][:, 0] 
-    if not st.session_state.get("play_triggered", False):        
+    y_vals = st.session_state.xy_mesh[1][:, 0]
+    if not st.session_state.get("play_triggered", False):
         filtered_data = apply_cutoff_filter(
             st.session_state.viewport_data,
             threshold=filter_cutoff,
             soft=soft_cutoff
         )
-        fig = plot_array_px(filtered_data, 
+        fig = plot_array_px(filtered_data,
                             white_bg=st.session_state.white_bg,
                             x_vals=x_vals,
                             y_vals=y_vals)
         plot_static.plotly_chart(fig, use_container_width=False)
-
 
 
 st.write('\n')

@@ -2,7 +2,7 @@ import numpy as np
 import streamlit as st
 from ct_core.back_propagation import *
 
-from ct_core.pipeline_utils import signal_readout_iter, sim_params_to_grid, phi_width
+from ct_core.pipeline_utils import signal_readout_iter, sim_params_to_grid, phi_width, to_uint8
 
 
 @st.cache_data
@@ -109,7 +109,8 @@ def run_back_propagation_iter(recon_array: np.ndarray,
                                           is_beam_angular=is_beam_angular
                                       )
                                       )
-            recon_array = recon_array + strength * ray_array / theta_count
+            #recon_array = recon_array + strength * ray_array / theta_count
+            np.add(recon_array, (strength * ray_array.astype(np.float32)) / theta_count, out=recon_array)
 
         case _:
             return recon_array, np.zeros_like(recon_array), False
@@ -129,7 +130,7 @@ def compute_recon_array_series(theta_space,
                                filter_mode, 
                                common_width_kwargs,
                                )-> tuple[np.ndarray, np.ndarray]:
-    recon_array = np.zeros_like(xy_mesh[0])
+    recon_array = np.zeros_like(xy_mesh[0], dtype=np.float32)
     recon_array_series = []
     for theta in theta_space:
         for phi in phi_space:
@@ -151,10 +152,11 @@ def compute_recon_array_series(theta_space,
 
             #st.session_state.recon_array = recon_array
             if updated:
-                recon_array = temp_recon_array
+                recon = temp_recon_array.copy().astype(np.float32) 
+                beam = ray_array.astype(np.float32) 
+                frame = recon + beam
+                recon_array_series.append(frame)
 
-                frame = temp_recon_array + ray_array
-                recon_array_series.append(frame.copy())
     return recon_array, recon_array_series
 
 
